@@ -1,0 +1,34 @@
+stages:
+  - build
+  - test
+  - sonar
+  - deploy
+
+frontend-build:
+  stage: build
+  script:
+    - cd agroflow-frontend
+    - npm ci
+    - npm run build
+    - docker build -t agroflow-frontend .
+  artifacts:
+    paths:
+      - agroflow-frontend/dist/
+    expire_in: 1 week
+
+frontend-test:
+  stage: test
+  script:
+    - cd agroflow-frontend
+    - npm ci
+    - npm run lint
+
+frontend-deploy:
+  stage: deploy
+  dependencies:
+    - frontend-build
+  script:
+    - docker compose up -d --no-deps --build frontend
+  resource_group: agroflow-deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "demo"'

@@ -1,0 +1,9 @@
+stages:
+  - build
+  - test
+  - sonar
+  - deploy
+
+include:
+  - local: "AgroFlow-backend/.gitlab-ci.yml"
+  - local: "agroflow-frontend/.gitlab-ci.yml"
