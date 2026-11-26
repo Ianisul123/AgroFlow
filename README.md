@@ -56,7 +56,11 @@ Controllers handle HTTP and DTO validation. Services implement application opera
 - Registration creates an account with the `USER` role.
 - A configured `ADMIN` account supports administrator-only operations.
 - Tokens are currently stored **in backend memory** and become invalid after a backend restart. This is a prototype limitation, not a production-ready session-management solution.
-
+- WebSocket subscriptions are authorized based on user ID
+  and role.
+- Farm notifications are restricted to farm owners and
+  administrators.
+- Direct message publishing by WebSocket clients is blocked.
 ## Run locally with Docker
 
 ### Requirements
@@ -113,10 +117,11 @@ Generated reports:
 
 | Metric | Result |
 | --- | ---: |
-| Automated backend tests | **62 passed** |
-| JaCoCo instruction coverage | **83%** |
-| JaCoCo branch coverage | **62%** |
-| JaCoCo line coverage | **80%** |
+| Automated backend tests | **73 passed** |
+| Test success rate | **100%** |
+| JaCoCo instruction coverage | **86%** |
+| JaCoCo branch coverage | **69%** |
+| JaCoCo line coverage | **82%** |
 
 These are results from a local run, **not** a GitHub Actions status badge. JaCoCo and SonarQube can report different coverage metrics or apply different exclusions.
 
@@ -132,8 +137,8 @@ These are results from a local run, **not** a GitHub Actions status badge. JaCoC
 | GET / PUT / DELETE | `/farms/{id}` | View/update/delete a farm (deletion requires ADMIN) |
 | GET / POST | `/farms/{farmId}/irrigation-zones` | List/create irrigation zones |
 | WebSocket | `/ws` | STOMP connection endpoint |
-| STOMP topic | `/topic/farms` | Farm-created/updated/deleted notifications |
-
+| STOMP topic | `/topic/farms/admin` | Administrator notifications |
+| STOMP topic | `/topic/farms/user/{userId}` | Farm owner notifications |
 Authorization is enforced server-side; the frontend additionally hides or restricts controls where appropriate.
 
 ## Screenshots
@@ -158,9 +163,11 @@ Farm information, irrigation zones, crop types and moisture thresholds.
 
 ### Testing & Code Coverage
 
-62 automated tests passing, with 83% instruction coverage and 62% branch coverage measured using JaCoCo.
-
+73 automated backend tests passing, with 86% instruction
+coverage, 69% branch coverage, and 82% line coverage
+measured using JaCoCo.
 ![JaCoCo Report](docs/screenshots/jacoco-report.png)
+![Automated Test Results](docs/screenshots/test-results.png)
 
 ## Project structure
 
@@ -181,6 +188,8 @@ AgroFlow/
 - Review placeholder UI elements and ensure they are clearly labeled or removed.
 - Add automated browser-based UI tests and GitHub Actions CI if the project is published.
 - Extend irrigation functionality beyond storing zone settings; live sensors and automatic irrigation are not implemented.
+- Revoking an authentication token does not automatically
+  terminate existing server-side WebSocket sessions.
 
 ## Project status
 

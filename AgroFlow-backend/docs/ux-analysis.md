@@ -57,6 +57,9 @@ The interface focuses on simplicity, data organization, authenticated access, va
 - Empty states when no farms are available.
 - Real-time notifications through WebSockets and STOMP.
 - Automatic farm-list refresh after relevant events.
+- Role-based WebSocket subscription authorization.
+- Real-time notifications restricted to farm owners
+  and administrators.
 
 ## Design Decisions
 
@@ -72,11 +75,16 @@ The application includes 62 passing automated backend tests covering authenticat
 
 Core user flows were also manually tested through the React interface.
 
+The application includes 73 passing automated backend tests
+covering authentication, authorization, farm management,
+irrigation zones, validation, API integration, and WebSocket
+subscription security.
+
 JaCoCo results:
 
-- Instruction coverage: 83%
-- Branch coverage: 62%
-- Line coverage: 80%
+- Instruction coverage: 86%
+- Branch coverage: 69%
+- Line coverage: 82%
 
 ## Current Limitations
 

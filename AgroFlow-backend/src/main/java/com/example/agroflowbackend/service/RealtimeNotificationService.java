@@ -10,12 +10,15 @@ import java.time.Instant;
 @Service
 public class RealtimeNotificationService {
 
-    private static final String FARM_TOPIC = "/topic/farms";
+    private static final String ADMIN_TOPIC = "/topic/farms/admin";
+    private static final String USER_TOPIC_PREFIX = "/topic/farms/user/";
     private static final String FARM_RESOURCE_TYPE = "FARM";
 
     private final SimpMessagingTemplate messagingTemplate;
 
-    public RealtimeNotificationService(SimpMessagingTemplate messagingTemplate) {
+    public RealtimeNotificationService(
+            SimpMessagingTemplate messagingTemplate
+    ) {
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -43,17 +46,35 @@ public class RealtimeNotificationService {
         );
     }
 
-    private void sendFarmNotification(String type, Farm farm, String messageTemplate) {
+    private void sendFarmNotification(
+            String type,
+            Farm farm,
+            String messageTemplate
+    ) {
         String farmName = farm.getName();
-        RealtimeNotificationResponse notification = new RealtimeNotificationResponse(
-                type,
-                FARM_RESOURCE_TYPE,
-                farm.getId(),
-                farmName,
-                String.format(messageTemplate, farmName),
-                Instant.now()
+
+        RealtimeNotificationResponse notification =
+                new RealtimeNotificationResponse(
+                        type,
+                        FARM_RESOURCE_TYPE,
+                        farm.getId(),
+                        farmName,
+                        String.format(messageTemplate, farmName),
+                        Instant.now()
+                );
+
+        // Notify administrators.
+        messagingTemplate.convertAndSend(
+                ADMIN_TOPIC,
+                notification
         );
 
-        messagingTemplate.convertAndSend(FARM_TOPIC, notification);
+        // Notify the farm owner.
+        if (farm.getOwnerId() != null) {
+            messagingTemplate.convertAndSend(
+                    USER_TOPIC_PREFIX + farm.getOwnerId(),
+                    notification
+            );
+        }
     }
 }

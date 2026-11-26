@@ -1,6 +1,7 @@
 package com.example.agroflowbackend.config;
 
 import com.example.agroflowbackend.domain.AuthenticatedUser;
+import com.example.agroflowbackend.domain.UserRole;
 import com.example.agroflowbackend.service.AuthTokenService;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.NonNull;
@@ -18,18 +19,12 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
-//configurează WebSocket /ws, topic-uri /topic și auth pentru WebSocket.
+
 @Configuration
 @NullMarked
-// Activeaza suportul Spring pentru WebSocket + STOMP.
-// Pe scurt pentru profesor: folosim WebSocket ca frontend-ul sa primeasca update-uri
-// in timp real, fara sa faca refresh sau polling repetat catre backend.
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    // Valoarea vine din application.properties: app.cors.allowed-origin.
-    // Asa putem permite frontend-ul local, de exemplu http://localhost:5173,
-    // fara sa hardcodam valoarea in mai multe locuri.
     private final String allowedOrigin;
     private final AuthTokenService authTokenService;
 
@@ -43,22 +38,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // /topic este canalul pe care backend-ul publica mesaje catre clienti.
-        // Exemplu concret: RealtimeNotificationService trimite notificari pe /topic/farms,
-        // iar frontend-ul este abonat acolo si isi actualizeaza lista de ferme.
         registry.enableSimpleBroker("/topic");
-
-        // /app ar fi prefixul pentru mesaje trimise din frontend catre metode @MessageMapping.
-        // In cazul nostru fluxul principal este backend -> frontend, dar prefixul ramane
-        // configurat pentru extensii viitoare.
         registry.setApplicationDestinationPrefixes("/app");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // /ws este endpoint-ul la care se conecteaza frontend-ul prin STOMP/WebSocket.
-        // setAllowedOrigins este partea similara cu CORS pentru handshake-ul WebSocket:
-        // backend-ul accepta conexiuni doar de la originea configurata.
         registry.addEndpoint("/ws")
                 .setAllowedOrigins(allowedOrigin);
     }
@@ -71,20 +56,71 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private class AuthenticatedWebSocketInterceptor implements ChannelInterceptor {
 
         @Override
-        public @Nullable Message<@NonNull ?> preSend(Message<@NonNull ?> message, MessageChannel channel) {
-            StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        public @Nullable Message<@NonNull ?> preSend(
+                Message<@NonNull ?> message,
+                MessageChannel channel
+        ) {
+            StompHeaderAccessor accessor =
+                    MessageHeaderAccessor.getAccessor(
+                            message, StompHeaderAccessor.class
+                    );
 
-            if (accessor == null || !StompCommand.CONNECT.equals(accessor.getCommand())) {
+            if (accessor == null) {
                 return message;
             }
 
-            String authorizationHeader = accessor.getFirstNativeHeader("Authorization");
-            String token = authTokenService.extractToken(authorizationHeader)
-                    .orElseThrow(() -> new IllegalArgumentException("Missing WebSocket authentication token."));
-            AuthenticatedUser user = authTokenService.findByToken(token)
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid WebSocket authentication token."));
+            StompCommand command = accessor.getCommand();
 
-            accessor.setUser(user);
+            if (StompCommand.CONNECT.equals(command)
+                    || StompCommand.STOMP.equals(command)) {
+
+                String authorizationHeader =
+                        accessor.getFirstNativeHeader("Authorization");
+
+                String token = authTokenService.extractToken(authorizationHeader)
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Missing WebSocket authentication token."
+                        ));
+
+                AuthenticatedUser user = authTokenService.findByToken(token)
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Invalid WebSocket authentication token."
+                        ));
+
+                accessor.setUser(user);
+                return message;
+            }
+
+            if (StompCommand.SUBSCRIBE.equals(command)) {
+
+                if (!(accessor.getUser() instanceof AuthenticatedUser user)) {
+                    throw new SecurityException("Authentication required.");
+                }
+
+                String destination = accessor.getDestination();
+
+                boolean adminSubscription =
+                        user.getRole() == UserRole.ADMIN
+                                && "/topic/farms/admin".equals(destination);
+
+                boolean ownerSubscription =
+                        user.getRole() == UserRole.USER
+                                && ("/topic/farms/user/" + user.getId())
+                                .equals(destination);
+
+                if (!adminSubscription && !ownerSubscription) {
+                    throw new SecurityException(
+                            "Unauthorized WebSocket subscription."
+                    );
+                }
+            }
+
+            if (StompCommand.SEND.equals(command)) {
+                throw new SecurityException(
+                        "Client message publishing is not allowed."
+                );
+            }
+
             return message;
         }
     }

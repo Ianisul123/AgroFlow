@@ -8,20 +8,31 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 class RealtimeNotificationServiceTest {
 
+    private static final String ADMIN_TOPIC = "/topic/farms/admin";
+    private static final String USER_TOPIC_PREFIX = "/topic/farms/user/";
+
     @Test
-    void notifyFarmCreatedShouldPublishFarmCreatedEvent() {
-        SimpMessagingTemplate messagingTemplate = mock(SimpMessagingTemplate.class);
-        RealtimeNotificationService notificationService = new RealtimeNotificationService(messagingTemplate);
-        Farm farm = new Farm(1L, "North Field", "Eindhoven");
+    void notifyFarmCreatedShouldPublishToAdminAndOwner() {
+        SimpMessagingTemplate messagingTemplate =
+                mock(SimpMessagingTemplate.class);
+
+        RealtimeNotificationService notificationService =
+                new RealtimeNotificationService(messagingTemplate);
+
+        Farm farm = new Farm(1L, "North Field", "Eindhoven", 10L);
 
         notificationService.notifyFarmCreated(farm);
 
-        RealtimeNotificationResponse notification = captureNotification(messagingTemplate);
+        RealtimeNotificationResponse notification =
+                captureNotification(messagingTemplate, 10L);
+
         assertEquals("FARM_CREATED", notification.getType());
         assertEquals("FARM", notification.getResourceType());
         assertEquals(1L, notification.getResourceId());
@@ -31,14 +42,20 @@ class RealtimeNotificationServiceTest {
     }
 
     @Test
-    void notifyFarmUpdatedShouldPublishFarmUpdatedEvent() {
-        SimpMessagingTemplate messagingTemplate = mock(SimpMessagingTemplate.class);
-        RealtimeNotificationService notificationService = new RealtimeNotificationService(messagingTemplate);
-        Farm farm = new Farm(2L, "Updated Field", "Tilburg");
+    void notifyFarmUpdatedShouldPublishToAdminAndOwner() {
+        SimpMessagingTemplate messagingTemplate =
+                mock(SimpMessagingTemplate.class);
+
+        RealtimeNotificationService notificationService =
+                new RealtimeNotificationService(messagingTemplate);
+
+        Farm farm = new Farm(2L, "Updated Field", "Tilburg", 20L);
 
         notificationService.notifyFarmUpdated(farm);
 
-        RealtimeNotificationResponse notification = captureNotification(messagingTemplate);
+        RealtimeNotificationResponse notification =
+                captureNotification(messagingTemplate, 20L);
+
         assertEquals("FARM_UPDATED", notification.getType());
         assertEquals("FARM", notification.getResourceType());
         assertEquals(2L, notification.getResourceId());
@@ -48,14 +65,20 @@ class RealtimeNotificationServiceTest {
     }
 
     @Test
-    void notifyFarmDeletedShouldPublishFarmDeletedEvent() {
-        SimpMessagingTemplate messagingTemplate = mock(SimpMessagingTemplate.class);
-        RealtimeNotificationService notificationService = new RealtimeNotificationService(messagingTemplate);
-        Farm farm = new Farm(3L, "Deleted Field", "Breda");
+    void notifyFarmDeletedShouldPublishToAdminAndOwner() {
+        SimpMessagingTemplate messagingTemplate =
+                mock(SimpMessagingTemplate.class);
+
+        RealtimeNotificationService notificationService =
+                new RealtimeNotificationService(messagingTemplate);
+
+        Farm farm = new Farm(3L, "Deleted Field", "Breda", 30L);
 
         notificationService.notifyFarmDeleted(farm);
 
-        RealtimeNotificationResponse notification = captureNotification(messagingTemplate);
+        RealtimeNotificationResponse notification =
+                captureNotification(messagingTemplate, 30L);
+
         assertEquals("FARM_DELETED", notification.getType());
         assertEquals("FARM", notification.getResourceType());
         assertEquals(3L, notification.getResourceId());
@@ -64,14 +87,53 @@ class RealtimeNotificationServiceTest {
         assertNotNull(notification.getCreatedAt());
     }
 
-    private RealtimeNotificationResponse captureNotification(SimpMessagingTemplate messagingTemplate) {
-        ArgumentCaptor<RealtimeNotificationResponse> notificationCaptor =
+    @Test
+    void farmWithoutOwnerShouldNotifyOnlyAdmins() {
+        SimpMessagingTemplate messagingTemplate =
+                mock(SimpMessagingTemplate.class);
+
+        RealtimeNotificationService notificationService =
+                new RealtimeNotificationService(messagingTemplate);
+
+        Farm farm = new Farm(4L, "Unassigned Field", "Eindhoven");
+
+        notificationService.notifyFarmCreated(farm);
+
+        ArgumentCaptor<RealtimeNotificationResponse> captor =
                 ArgumentCaptor.forClass(RealtimeNotificationResponse.class);
+
         verify(messagingTemplate).convertAndSend(
-                org.mockito.ArgumentMatchers.eq("/topic/farms"),
-                notificationCaptor.capture()
+                eq(ADMIN_TOPIC),
+                captor.capture()
         );
 
-        return notificationCaptor.getValue();
+        assertEquals("FARM_CREATED", captor.getValue().getType());
+        assertEquals(4L, captor.getValue().getResourceId());
+
+        verifyNoMoreInteractions(messagingTemplate);
+    }
+
+    private RealtimeNotificationResponse captureNotification(
+            SimpMessagingTemplate messagingTemplate,
+            Long ownerId
+    ) {
+        ArgumentCaptor<RealtimeNotificationResponse> captor =
+                ArgumentCaptor.forClass(RealtimeNotificationResponse.class);
+
+        verify(messagingTemplate).convertAndSend(
+                eq(ADMIN_TOPIC),
+                captor.capture()
+        );
+
+        RealtimeNotificationResponse notification = captor.getValue();
+
+        verify(messagingTemplate).convertAndSend(
+                USER_TOPIC_PREFIX + ownerId,
+                notification
+        );
+
+        verifyNoMoreInteractions(messagingTemplate);
+
+        return notification;
     }
 }

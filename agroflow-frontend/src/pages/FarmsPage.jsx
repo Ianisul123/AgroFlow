@@ -78,8 +78,16 @@ function FarmsPage() {
     }
   }, [loadFarms]);
 
-  useFarmNotifications(handleFarmNotification, { token });
+const notificationTopic = isAdmin
+  ? "/topic/farms/admin"
+  : user?.id
+    ? `/topic/farms/user/${user.id}`
+    : null;
 
+useFarmNotifications(handleFarmNotification, {
+  token,
+  topic: notificationTopic,
+});
   useEffect(() => {
     if (!notification) {
       return;
