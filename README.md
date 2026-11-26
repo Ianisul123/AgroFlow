@@ -1,5 +1,5 @@
 # AgroFlow
-
+[![Backend CI](https://github.com/Ianisul123/AgroFlow/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/Ianisul123/AgroFlow/actions/workflows/backend-ci.yml)
 **Full-stack farm and irrigation-zone management application**  
 Java 21 · Spring Boot · React · PostgreSQL · Docker · WebSockets
 
